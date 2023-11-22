@@ -7,10 +7,20 @@ class CURL {
     private $postData;
     private $PROXY;
     private $REDIRECT_ALLOW = false;
+    private $RANDOM_USER_AGENT = false;
 
     private $PROXYS = array(
-        "127.0.0.1:1234"
+        "127.0.0.1:1234", // 이용중인 프록시
     );
+
+    private function RETURN($STATUS, $MSG = null, $STATUS_CODE = null, $BODY = null, $HEADER = null) {
+        $RETURN = ["STATUS" => $STATUS === "OK" ? "OK" : "ERR"];
+        if ($STATUS_CODE) $RETURN["CODE"] = $STATUS_CODE;
+        if ($MSG) $RETURN["MSG"] = $MSG;
+        if ($BODY) $RETURN["BODY"] = $BODY;
+        if ($HEADER) $RETURN["HEADER"] = $HEADER;
+        return $RETURN;
+    }
 
     public function __construct($url, $method = 'GET') {
         $this->url = $url;
@@ -45,18 +55,29 @@ class CURL {
         $this->REDIRECT_ALLOW = true;
     }
 
+    public function RANDOM_USER_AGENT(){
+        $this->RANDOM_USER_AGENT = true;
+    }
+
     public function SEND() {
         $ch = curl_init();
-
         curl_setopt($ch, CURLOPT_URL, $this->url);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
         curl_setopt($ch, CURLOPT_HEADER, 1);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $this->method);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+        curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+
+        if($this->RANDOM_USER_AGENT){
+            // 이부분은 알아서 하세요
+            // $USER_AGENT = file(PROJECT_LOCATION."/LIB/AUTOLOAD_GLOBAL/FRAMEWORK/USER-AGENT.txt");
+            // $this->HEDAERS[] = "User-Agent: ". $USER_AGENT[rand(0, count($USER_AGENT) - 1)];
+         }else{
+            $this->HEDAERS[] = 'User-Agent: PHP-CURL-WRAPPER';
+        }
 
         if ($this->HEDAERS) {
-            $this->HEDAERS[] = 'User-Agent: PHP-CURL';
             curl_setopt($ch, CURLOPT_HTTPHEADER, $this->HEDAERS);
         }
 
@@ -87,11 +108,20 @@ class CURL {
             $status = "ERR";
         }
 
-        return [
-            "STATUS" => $status,
-            "HEADER" => $header,
-            "BODY" => $body,
-            "CODE" => $httpCode,
-        ];
+        if($httpCode == 0){
+            return self::RETURN("ERR", curl_error($ch), curl_errno($ch));
+        }else{
+
+            $headers = explode("\n", $header);
+            $headerArray = [];
+            foreach ($headers as $header) {
+                $parts = explode(': ', $header, 2);
+                if (count($parts) == 2) {
+                    $headerArray[trim($parts[0])] = trim($parts[1]);
+                }
+            }
+
+            return self::RETURN($status, "Fetch Success", $httpCode, $body, $headerArray);
+        }
     }
 }
